@@ -1,0 +1,11 @@
+rolling_window_matches: 300
+min_matches_to_promote: 200
+promotion_p_value: 0.05
+psi_threshold: 0.2
+ks_alpha: 0.01
+weight_temperature: 12.0
+calibration_min_samples: 300
+recalibrate_every_matches: 50
+max_ece: 0.05
+min_ece_samples: 150
+min_dqs: 0.8

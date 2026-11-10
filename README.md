@@ -267,52 +267,67 @@ cp .env.example .env
 docker compose up -d redis      # cache
 ```
 
+## Implementation Status (read before trusting anything)
+
+| Component | Status |
+|---|---|
+| Features, models, ensemble, calibration, Brainbox, pipeline, DuckDB store, FastAPI, CLI, dashboard | Built; **22 automated tests pass** (`make test`) |
+| End-to-end loop (stage predictions, lock, settle, learn, promote) | Verified on a **synthetic league simulator** (`EDGEAGENT_SOURCE=synthetic`) |
+| Live connectors (football-data.co.uk, API-Football, The Odds API) | Written from provider docs and unit-tested against **mocked** responses only. **Not yet run against real keys**; verify field names and team-name matching on first use |
+| Real-world accuracy | **Unmeasured.** Run `backfill` + `backtest` on real history to find out |
+
+What the synthetic runs show (not a claim about real sport): the ensemble beats the uniform baseline, the learned market blend lands near the market's log loss, and simulated betting shows **no edge**, because the simulated market is efficient by construction. Expect the same humility on real data.
+
+**Deviations from the sections above (deliberate simplifications)**
+- Goal model is independent Poisson with time decay (no Dixon-Coles low-score correction yet); gradient boosting uses scikit-learn's `HistGradientBoostingClassifier`, not LightGBM.
+- `ci_width` is a **model-disagreement band** (1.96 x std across members), not a statistical confidence interval.
+- Drift uses PSI + KS tests and a Page-Hinkley alarm on log loss (not ADWIN). The error analyst is rule-based; there is no LLM call yet.
+- The final probability blends the calibrated model ensemble with the de-vigged market; the Brainbox learns the blend weight. Edge = final minus market, so it shrinks toward zero when the models add no information.
+- Isotonic calibration stays an identity map until 300 out-of-sample matches exist. Team-name aliases cover the big leagues; extend `ingestion/matching.py` for others and watch `LiveSource.unmatched`.
+
 ## Quick Start
 
 ```bash
-# 1. Backfill history
-python -m edgeagent.cli backfill --league epl --seasons 2018-2025
+pip install -e ".[dev]" -r dashboard/requirements.txt
+cp .env.example .env
 
-# 2. Train models and calibrate
-python -m edgeagent.cli train --config configs/models.yaml
+# 1. Offline demo (synthetic world): train, predict by stage, lock, settle, learn
+python -m edgeagent.cli simulate --hours 600 --step 3
+python -m edgeagent.cli backtest          # walk-forward report, stored for the dashboard
 
-# 3. Start live pipeline (fetch, predict, lock, learn)
-python -m edgeagent.cli run --leagues epl,laliga,seriea --live
+# 2. Serve API + dashboard
+python -m edgeagent.cli serve             # http://localhost:8000/docs
+cd dashboard && EDGEAGENT_API_URL=http://localhost:8000 streamlit run app.py
 
-# 4. Single fixture forecast
-python -m edgeagent.cli predict --fixture-id 123456
-
-# 5. Dashboard
-streamlit run dashboard/app.py
+# Or everything in containers (synthetic by default)
+docker compose up --build                 # API :8000, dashboard :8501
 ```
+
+**Live data**
+```bash
+export EDGEAGENT_SOURCE=live API_FOOTBALL_KEY=... ODDS_API_KEY=...
+python -m edgeagent.cli backfill          # 3 seasons of results + odds (football-data.co.uk)
+python -m edgeagent.cli train             # prints the honest hold-out report
+python -m edgeagent.cli run               # loop: fetch, predict at T-24h/6h/1h/30m, lock, settle, learn
+```
+Mind the quotas: the free Odds API tier is roughly 500 credits/month and API-Football's free tier roughly 100 requests/day. TTLs and the loop interval live in `configs/sources.yaml` (defaults: 15-minute odds cache, 10-minute loop).
+
+DuckDB allows one writing process per file: either run the pipeline inside the API (`EDGEAGENT_AUTORUN=1`) or run CLI commands while the API is stopped.
+
+## API
+
+| Route | Purpose |
+|---|---|
+| `GET /v1/fixtures/upcoming`, `/v1/fixtures/{id}` | Latest staged prediction, market, edge, DQS, refusal reason |
+| `GET /v1/brainbox/status` | Log loss by model, weights, market trust, calibration, drift, challenger test, guardrails |
+| `GET /v1/data/sources` | Source freshness and completeness |
+| `GET /v1/backtest/latest`, `/v1/backtest/summary` | Curves and metrics from the last backtest |
+| `GET /v1/meta` | Source type (synthetic/live), active config, version |
+| `POST /v1/pipeline/run` | Manual tick; requires `X-Admin-Key` = `EDGEAGENT_ADMIN_KEY` |
 
 ## Configuration
 
-`.env`
-
-```
-API_FOOTBALL_KEY=
-ODDS_API_KEY=
-LLM_API_KEY=
-REDIS_URL=redis://localhost:6379
-```
-
-`configs/brainbox.yaml`
-
-```yaml
-rolling_window_matches: 300
-min_matches_to_promote: 200
-promotion_p_value: 0.05
-drift:
-  method: adwin
-  psi_threshold: 0.2
-calibration:
-  method: isotonic
-  refit_every: 7d
-guardrails:
-  max_ece: 0.05
-  min_dqs: 0.8
-```
+`configs/brainbox.yaml`, `configs/risk.yaml` and `configs/sources.yaml` hold thresholds (promotion p-value, PSI limit, ECE guardrail, Kelly fraction, TTLs). Keys and switches go in `.env` (see `.env.example`).
 
 ## Evaluation and Backtesting
 

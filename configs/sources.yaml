@@ -1,0 +1,8 @@
+# TTLs in seconds. Mind provider quotas: the free Odds API tier is ~500 credits/month,
+# API-Football free tier ~100 requests/day. Keep odds_ttl high unless you pay for more.
+ttl:
+  fixtures: 900
+  odds: 900
+  lineups: 300
+  history: 86400
+interval_s: 600

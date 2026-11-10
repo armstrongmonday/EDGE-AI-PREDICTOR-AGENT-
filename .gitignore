@@ -4,3 +4,7 @@ __pycache__/
 *.pyc
 data/
 .streamlit/secrets.toml
+.pytest_cache/
+*.duckdb
+*.egg-info/
+.ruff_cache/

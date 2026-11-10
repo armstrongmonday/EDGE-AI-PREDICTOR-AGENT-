@@ -7,14 +7,16 @@ st.set_page_config(page_title="EdgeAgent v2", page_icon="🧠", layout="wide")
 
 @st.cache_data(ttl=30)
 def load():
-    return api.get_fixtures(), api.get_brainbox(), api.get_sources(), api.get_backtest()
+    return api.get_meta(), api.get_fixtures(), api.get_brainbox(), api.get_sources(), api.get_backtest()
 
-(fx, fx_demo), (bb, bb_demo), (src, _), (bt, _) = load()
+meta, (fx, fx_demo), (bb, bb_demo), (src, _), (bt, bt_summary, bt_demo) = load()
 
 st.title("🧠 EdgeAgent v2")
 st.caption("Calibrated probabilities, not guarantees. Research and education only.")
 if fx_demo:
     st.warning("Backend not reachable: showing SYNTHETIC demo data. Nothing here is a real prediction.")
+elif meta.get("synthetic"):
+    st.info("Connected to the backend's SYNTHETIC league simulator (no real matches). Set EDGEAGENT_SOURCE=live with API keys for real data.")
 
 with st.sidebar:
     st.header("Filters")
@@ -26,13 +28,18 @@ with st.sidebar:
         st.cache_data.clear(); st.rerun()
     st.info("**Notes**\n- 1X2 accuracy of ~50-58% is realistic.\n- Aviator cannot be predicted.\n- Simulated staking only.")
 
-view = fx[fx.league.isin(leagues) & (fx.dqs >= min_dqs)].copy()
+pool = fx[fx.league.isin(leagues)]
+refused = pool[~pool.predictable | (pool.dqs < min_dqs)]
+view = pool[pool.predictable & (pool.dqs >= min_dqs)].copy()
 tabs = st.tabs(["Upcoming", "Match detail", "Brainbox", "Data quality", "Backtest", "Aviator Lab"])
 
 # ---- Upcoming
 with tabs[0]:
+    if len(refused):
+        reasons = refused.get("reason", pd.Series(dtype=str)).fillna("below data-quality threshold").value_counts()
+        st.caption(f"{len(refused)} fixture(s) refused: " + "; ".join(f"{k} ({v})" for k, v in reasons.items()))
     if view.empty:
-        st.info("No fixtures meet the data-quality gate. The system refuses to predict on weak data.")
+        st.info("No fixtures pass the data-quality gate right now. The system refuses to predict on weak data.")
     else:
         out = view.assign(
             match=view.home + " vs " + view.away,
@@ -83,6 +90,8 @@ with tabs[2]:
     st.caption("Meta-learning layer: weights, drift, calibration, champion/challenger.")
     if bb_demo: st.caption("Synthetic Brainbox metrics.")
     ll = bb["logloss"]
+    if ll.empty:
+        st.info("No settled predictions scored yet. The Brainbox learns after matches finish.")
     c1, c2 = st.columns(2)
     with c1:
         fig = go.Figure([go.Scatter(x=ll.index, y=ll[m], name=m, mode="lines") for m in ll.columns])
@@ -91,13 +100,13 @@ with tabs[2]:
     with c2:
         w = bb["weights"]
         st.plotly_chart(go.Figure(go.Bar(x=w.index, y=w.values)).update_layout(
-            title="Dynamic ensemble weights", height=340, margin=dict(t=40)), width="stretch")
+            title=f"Ensemble weights (market trust {bb.get('market_weight', 0):.0%})", height=340, margin=dict(t=40)), width="stretch")
     c3, c4 = st.columns(2)
     with c3:
         cal = bb["calib"]; fig = go.Figure()
         fig.add_scatter(x=[0, 1], y=[0, 1], mode="lines", name="Perfect", line=dict(dash="dash"))
         fig.add_scatter(x=cal.pred, y=cal.obs, mode="lines+markers", name="Observed")
-        fig.update_layout(title=f"Reliability curve (ECE {bb['ece']:.3f})", height=340, margin=dict(t=40),
+        fig.update_layout(title="Reliability curve" + (f" (ECE {bb['ece']:.3f})" if bb.get("ece") is not None else " (ECE needs 150+ matches)"), height=340, margin=dict(t=40),
                           xaxis_title="Predicted", yaxis_title="Observed")
         st.plotly_chart(fig, width="stretch")
     with c4:
@@ -105,8 +114,15 @@ with tabs[2]:
         st.dataframe(bb["drift"].round(3), hide_index=True, width="stretch")
     st.markdown("**Champion / challenger gate** (promote only if p < 0.05 and calibration holds)")
     st.dataframe(bb["cc"], hide_index=True, width="stretch")
-    ok = bb["ece"] <= 0.05
-    (st.success if ok else st.error)(f"Guardrail: ECE {bb['ece']:.3f} vs limit 0.05. " + ("Predictions enabled." if ok else "Predictions suppressed."))
+    sup = (bb.get("guardrail") or {}).get("suppressed", [])
+    if bb.get("ece") is None:
+        st.info("Guardrail: waiting for enough settled matches to measure calibration.")
+    elif sup:
+        st.error(f"Guardrail: predictions suppressed for {', '.join(sup)} (calibration above limit).")
+    else:
+        st.success(f"Guardrail: ECE {bb['ece']:.3f} within limit. Predictions enabled.")
+    for a in (bb.get("actions") or [])[-5:]:
+        st.caption(f"Brainbox action: {a}")
 
 # ---- Data quality
 with tabs[3]:
@@ -118,16 +134,27 @@ with tabs[3]:
 
 # ---- Backtest
 with tabs[4]:
-    st.caption("Walk-forward, no leakage, margin included. Demo curves are synthetic." if True else "")
-    c1, c2 = st.columns(2)
-    c1.plotly_chart(go.Figure(go.Scatter(x=bt.bet, y=bt.bankroll)).update_layout(
-        title="Simulated bankroll", height=300, margin=dict(t=40)), width="stretch")
-    c2.plotly_chart(go.Figure(go.Scatter(x=bt.bet, y=bt.clv_cum, line=dict(color="#22c55e"))).update_layout(
-        title="Cumulative closing-line value", height=300, margin=dict(t=40)), width="stretch")
-    m1, m2, m3 = st.columns(3)
-    m1.metric("Max drawdown", f"{bt.drawdown.min()*100:.1f}%")
-    m2.metric("Final bankroll (start 100)", f"{bt.bankroll.iloc[-1]:.1f}")
-    m3.metric("Cumulative CLV", f"{bt.clv_cum.iloc[-1]*100:.1f}%")
+    if bt_demo:
+        st.caption("Demo curves are synthetic.")
+    if bt.empty:
+        st.info("No backtest stored yet. Run: python -m edgeagent.cli backtest")
+    else:
+        c1, c2 = st.columns(2)
+        c1.plotly_chart(go.Figure(go.Scatter(x=bt.bet, y=bt.bankroll)).update_layout(
+            title="Simulated bankroll", height=300, margin=dict(t=40)), width="stretch")
+        c2.plotly_chart(go.Figure(go.Scatter(x=bt.bet, y=bt.clv_cum, line=dict(color="#22c55e"))).update_layout(
+            title="Cumulative closing-line value", height=300, margin=dict(t=40)), width="stretch")
+        m1, m2, m3 = st.columns(3)
+        m1.metric("Max drawdown", f"{bt.drawdown.min()*100:.1f}%")
+        m2.metric("Final bankroll (start 100)", f"{bt.bankroll.iloc[-1]:.1f}")
+        m3.metric("Cumulative CLV", f"{bt.clv_cum.iloc[-1]*100:.1f}%")
+    if bt_summary:
+        rows = {k: bt_summary[k] for k in ("model", "final", "market") if k in bt_summary}
+        st.markdown("**Probability quality on the walk-forward test set (lower log loss / Brier is better)**")
+        st.dataframe(pd.DataFrame(rows).T.assign(uniform_logloss=bt_summary["uniform_logloss"]).round(4), width="stretch")
+        bet = bt_summary.get("betting", {})
+        st.caption(f"{bet.get('n_bets', 0)} simulated bets | ROI/bet {bet.get('roi_per_bet', 0):+.3f} "
+                   f"(95% CI {bet.get('roi_ci95', ['?', '?'])[0]:.3f} to {bet.get('roi_ci95', ['?', '?'])[1]:.3f}) | {bet.get('note', '')}")
 
 # ---- Aviator Lab
 with tabs[5]:

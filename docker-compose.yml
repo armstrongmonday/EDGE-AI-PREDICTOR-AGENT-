@@ -1,0 +1,24 @@
+services:
+  redis:
+    image: redis:7-alpine
+  api:
+    build: .
+    environment:
+      EDGEAGENT_SOURCE: ${EDGEAGENT_SOURCE:-synthetic}   # set to "live" with real keys
+      EDGEAGENT_AUTORUN: "1"
+      EDGEAGENT_SIM_STEP_HOURS: ${EDGEAGENT_SIM_STEP_HOURS:-3}  # synthetic only; ignored for live
+      API_FOOTBALL_KEY: ${API_FOOTBALL_KEY:-}
+      ODDS_API_KEY: ${ODDS_API_KEY:-}
+      EDGEAGENT_ADMIN_KEY: ${EDGEAGENT_ADMIN_KEY:-}
+      REDIS_URL: redis://redis:6379
+    volumes: ["edgedata:/data"]
+    ports: ["8000:8000"]
+    depends_on: [redis]
+  dashboard:
+    build: ./dashboard
+    environment:
+      EDGEAGENT_API_URL: http://api:8000
+    ports: ["8501:8501"]
+    depends_on: [api]
+volumes:
+  edgedata:

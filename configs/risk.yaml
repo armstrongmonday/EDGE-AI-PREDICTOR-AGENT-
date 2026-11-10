@@ -1,0 +1,4 @@
+kelly_fraction: 0.15
+min_edge: 0.03
+max_stake_pct: 0.02
+max_daily_exposure_pct: 0.06

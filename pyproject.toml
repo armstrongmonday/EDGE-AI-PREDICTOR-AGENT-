@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "edgeagent"
+version = "0.2.0"
+description = "Agentic sports prediction pipeline: live data, calibrated ensemble, Brainbox self-improvement"
+requires-python = ">=3.11"
+dependencies = ["numpy>=1.26", "pandas>=2.2", "scipy>=1.11", "scikit-learn>=1.4", "duckdb>=1.0",
+                "httpx>=0.27", "fastapi>=0.110", "uvicorn>=0.29", "pyyaml>=6", "redis>=5"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff>=0.4"]
+
+[project.scripts]
+edgeagent = "edgeagent.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+[tool.ruff.lint]
+ignore = ["E701", "E702", "E731", "E741"]
