@@ -42,9 +42,12 @@ def run(matches: pd.DataFrame, cfg: dict, bb: dict, risk: dict, start_frac: floa
 
     T = np.arange(start, n)
     hm = T[~np.isnan(mk[T]).any(1)]
+    freq = np.bincount(y[:start], minlength=3) / start
+    acc = lambda P: float((P.argmax(1) == y[T]).mean())
     summary = {"n_test": len(T), "uniform_logloss": float(np.log(3)),
-               "model": {"logloss": logloss(model_p[T], y[T]), "brier": brier(model_p[T], y[T]), "ece": ece(model_p[T], y[T])},
-               "final": {"logloss": logloss(final[T], y[T]), "brier": brier(final[T], y[T]), "ece": ece(final[T], y[T])}}
+               "freq_baseline": {"logloss": logloss(np.tile(freq, (len(T), 1)), y[T]), "accuracy": float((freq.argmax() == y[T]).mean())},
+               "model": {"logloss": logloss(model_p[T], y[T]), "brier": brier(model_p[T], y[T]), "ece": ece(model_p[T], y[T]), "accuracy": acc(model_p[T])},
+               "final": {"logloss": logloss(final[T], y[T]), "brier": brier(final[T], y[T]), "ece": ece(final[T], y[T]), "accuracy": acc(final[T])}}
     if len(hm):
         summary["market"] = {"logloss": logloss(mk[hm], y[hm]), "brier": brier(mk[hm], y[hm]), "ece": ece(mk[hm], y[hm])}
 

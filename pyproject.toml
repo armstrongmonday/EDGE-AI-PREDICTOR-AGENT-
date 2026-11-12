@@ -16,6 +16,9 @@ dev = ["pytest>=8", "ruff>=0.4"]
 [project.scripts]
 edgeagent = "edgeagent.cli:main"
 
+[tool.setuptools.package-data]
+edgeagent = ["web/*", "web/icons/*"]
+
 [tool.setuptools.packages.find]
 where = ["src"]
 

@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b1220">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="style.css">
+<title>EdgeAgent</title>
+</head>
+<body>
+<header>
+  <div class="brand">EdgeAgent</div>
+  <div id="badge" class="badge">connecting…</div>
+</header>
+<div class="disclaimer">Probabilities, not guarantees. Simulated staking only. Bookmaker markets are efficient; losing streaks are normal. 18+ only.</div>
+<main id="view"></main>
+<nav>
+  <button data-tab="picks" class="on">Picks</button>
+  <button data-tab="brain">Brain</button>
+  <button data-tab="data">Data</button>
+  <button data-tab="backtest">Backtest</button>
+  <button data-tab="settings">Settings</button>
+</nav>
+<dialog id="sheet"></dialog>
+<script src="app.js"></script>
+</body>
+</html>

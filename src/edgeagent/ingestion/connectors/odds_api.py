@@ -14,8 +14,11 @@ class OddsApi(HttpConnector):
         super().__init__("https://api.the-odds-api.com", {}, cache, transport=transport)
         self.key = key
 
-    async def snapshot(self, sport_key: str, ttl: float = 900) -> list[dict]:
-        js = await self.get_json(f"/v4/sports/{sport_key}/odds", {"regions": "eu,uk", "markets": "h2h", "oddsFormat": "decimal"},
+    async def sports(self, ttl: float = 3600) -> list[dict]:
+        return await self.get_json("/v4/sports", {}, ttl, secret_params={"apiKey": self.key})  # free endpoint, no credits
+
+    async def snapshot(self, sport_key: str, ttl: float = 900, regions: str = "eu,uk") -> list[dict]:
+        js = await self.get_json(f"/v4/sports/{sport_key}/odds", {"regions": regions, "markets": "h2h", "oddsFormat": "decimal"},
                                  ttl, secret_params={"apiKey": self.key})
         out = []
         for ev in js:

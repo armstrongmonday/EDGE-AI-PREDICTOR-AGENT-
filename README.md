@@ -274,7 +274,9 @@ docker compose up -d redis      # cache
 | Features, models, ensemble, calibration, Brainbox, pipeline, DuckDB store, FastAPI, CLI, dashboard | Built; **22 automated tests pass** (`make test`) |
 | End-to-end loop (stage predictions, lock, settle, learn, promote) | Verified on a **synthetic league simulator** (`EDGEAGENT_SOURCE=synthetic`) |
 | Live connectors (football-data.co.uk, API-Football, The Odds API) | Written from provider docs and unit-tested against **mocked** responses only. **Not yet run against real keys**; verify field names and team-name matching on first use |
-| Real-world accuracy | **Unmeasured.** Run `backfill` + `backtest` on real history to find out |
+| Real-data skill check (`python scripts/validate_real.py`) | Done on **1,900 held-out real Premier League matches** (walk-forward, 2010-2020 results, no odds): accuracy **53.2%** vs 45.8% for always-pick-home; log loss **1.034** vs 1.062 (frequency baseline) and 1.099 (uniform); calibration error 0.022. Real skill, nowhere near 90%. Bookmaker closing lines typically score better than this, and these files contain no odds, so beating the market is **unmeasured** |
+| Windows desktop app, Android APK | Launcher and PyInstaller bundle **built and run on Linux** (API, app UI, training and predictions all worked). The `.exe` and APK are produced by the GitHub Actions workflows on first run: **not yet executed on Windows/Android** |
+| Phone app (installable PWA) | Tested in a simulated browser against the live API (all tabs, detail sheet, token errors). Not yet tried on a physical phone |
 
 What the synthetic runs show (not a claim about real sport): the ensemble beats the uniform baseline, the learned market blend lands near the market's log loss, and simulated betting shows **no edge**, because the simulated market is efficient by construction. Expect the same humility on real data.
 
@@ -313,6 +315,20 @@ python -m edgeagent.cli run               # loop: fetch, predict at T-24h/6h/1h/
 Mind the quotas: the free Odds API tier is roughly 500 credits/month and API-Football's free tier roughly 100 requests/day. TTLs and the loop interval live in `configs/sources.yaml` (defaults: 15-minute odds cache, 10-minute loop).
 
 DuckDB allows one writing process per file: either run the pipeline inside the API (`EDGEAGENT_AUTORUN=1`) or run CLI commands while the API is stopped.
+
+## Verify your live setup: `edgeagent doctor`
+After adding keys, run `python -m edgeagent.cli doctor`. It uses free endpoints plus one fixtures call and one odds call per league, and prints OK/FAIL for: API-Football key and daily quota, Odds API key, each league's API-Football id (with the league name it resolves to, so you can eyeball it), each odds sport key, the fixture-to-odds team-name match rate (needs 80%+), and football-data.co.uk history. Fix every FAIL before trusting predictions. Worldwide coverage comes from `ODDS_REGIONS` (default `eu,uk,us,au`) and `EDGEAGENT_LEAGUES`; add leagues in `src/edgeagent/config.py`.
+
+## Apps: Windows, Android, iPhone
+The engine runs on a PC or server; every app is a client of the same API and the same web UI (`src/edgeagent/web`).
+
+| Target | How |
+|---|---|
+| **Windows desktop** | GitHub -> Actions -> `desktop-windows` -> Run workflow -> download `EdgeAgent-windows.zip` -> unzip -> run `EdgeAgent.exe`. First launch creates `%APPDATA%\EdgeAgent\config.env`: paste your keys, set `EDGEAGENT_SOURCE=live`, restart. Binds to localhost only. Tag `v*` to publish a release |
+| **Android / iPhone (recommended)** | Open `https://your-server/app/` and use *Add to Home screen*. Set `EDGEAGENT_API_TOKEN` and serve over HTTPS (see `mobile/README.md`) |
+| **Android APK (optional)** | Actions -> `android-apk` -> downloads a debug APK (Capacitor wrapper) to sideload |
+
+Security: the API serves no data without `Authorization: Bearer <EDGEAGENT_API_TOKEN>` once that variable is set. Do not expose the API to the internet without it and HTTPS. The apps never place bets; stake figures are simulations.
 
 ## API
 

@@ -11,7 +11,7 @@ from .pipeline import Pipeline
 def main(argv=None):
     ap = argparse.ArgumentParser("edgeagent")
     sub = ap.add_subparsers(dest="cmd", required=True)
-    sub.add_parser("backfill"); sub.add_parser("train"); sub.add_parser("status")
+    sub.add_parser("backfill"); sub.add_parser("train"); sub.add_parser("status"); sub.add_parser("doctor")
     r = sub.add_parser("run"); r.add_argument("--once", action="store_true"); r.add_argument("--interval", type=float, default=0)
     s = sub.add_parser("simulate"); s.add_argument("--hours", type=float, default=240); s.add_argument("--step", type=float, default=3)
     b = sub.add_parser("backtest"); b.add_argument("--retrain-days", type=int, default=60)
@@ -30,6 +30,14 @@ def main(argv=None):
             print("matches stored:", await pipe.backfill())
         elif a.cmd == "train":
             await pipe.ensure_ready(); pipe.train(); print(json.dumps(pipe.bundles[pipe.active].report, indent=2, default=float))
+        elif a.cmd == "doctor":
+            from .ingestion import doctor
+            if getattr(pipe.source, "is_synthetic", False):
+                raise SystemExit("doctor checks live connections: set EDGEAGENT_SOURCE=live plus API_FOOTBALL_KEY and ODDS_API_KEY")
+            res = await doctor.run(pipe.source)
+            for name, ok, detail in res:
+                print(("OK   " if ok else "FAIL ") + name + (f"  [{detail}]" if detail else ""))
+            raise SystemExit(0 if all(ok for _, ok, _ in res) else 1)
         elif a.cmd == "status":
             print(json.dumps(pipe.bb.status(pipe), indent=2, default=str))
         elif a.cmd == "run":

@@ -35,3 +35,10 @@ class ApiFootball(HttpConnector):
     async def injuries_known(self, af_id: int, ttl: float = 900) -> bool:
         await self.get_json("/injuries", {"fixture": af_id}, ttl)
         return True
+
+    async def account(self) -> dict:
+        return (await self.get_json("/status", {}, 60)).get("response", {})
+
+    async def league_name(self, league_id: int) -> str | None:
+        r = (await self.get_json("/leagues", {"id": league_id}, 86400)).get("response", [])
+        return r[0]["league"]["name"] if r else None

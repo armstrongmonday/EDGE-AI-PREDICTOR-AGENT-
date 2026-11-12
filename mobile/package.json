@@ -1,0 +1,2 @@
+{"name":"edgeagent-mobile","version":"0.2.0","private":true,
+ "dependencies":{"@capacitor/android":"^6.1.0","@capacitor/cli":"^6.1.0","@capacitor/core":"^6.1.0"}}

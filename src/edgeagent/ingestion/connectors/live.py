@@ -33,7 +33,8 @@ class LiveSource:
         return utcnow()
 
     def _codes(self, leagues):
-        return [c for c in (leagues or self.cfg.leagues) if c in self.cfg.leagues]
+        wanted = leagues or [c.strip() for c in self.cfg.enabled_leagues.split(",") if c.strip()]
+        return [c for c in wanted if c in self.cfg.leagues]
 
     async def history(self, leagues=None, seasons: int = 3) -> pd.DataFrame:
         frames = []
@@ -52,7 +53,7 @@ class LiveSource:
             lg = self.cfg.leagues[code]
             fx = await self.apif.fixtures(code, lg["af"], season, f"{now:%Y-%m-%d}", f"{now + timedelta(days=days):%Y-%m-%d}", self.ttl["fixtures"])
             fx = fx[(fx.status == "NS") & (fx.date > now)].copy()
-            ev = await self.odds.snapshot(lg["odds"], self.ttl["odds"])
+            ev = await self.odds.snapshot(lg["odds"], self.ttl["odds"], self.cfg.odds_regions)
             fx[["odds_h", "odds_d", "odds_a"]] = np.nan
             for i, r in fx.iterrows():
                 m = match_event(r.home, r.away, r.date, ev)

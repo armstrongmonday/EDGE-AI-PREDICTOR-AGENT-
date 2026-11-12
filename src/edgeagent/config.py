@@ -18,7 +18,11 @@ LEAGUES = {
     "SERIEA": {"name": "Serie A", "fd": "I1", "af": 135, "odds": "soccer_italy_serie_a"},
     "BUNDES": {"name": "Bundesliga", "fd": "D1", "af": 78, "odds": "soccer_germany_bundesliga"},
     "LIGUE1": {"name": "Ligue 1", "fd": "F1", "af": 61, "odds": "soccer_france_ligue_one"},
-}
+    "CHAMP": {"name": "EFL Championship", "fd": "E1", "af": 40, "odds": "soccer_efl_champ"},
+    "EREDIV": {"name": "Eredivisie", "fd": "N1", "af": 88, "odds": "soccer_netherlands_eredivisie"},
+    "PRIMEIRA": {"name": "Primeira Liga", "fd": "P1", "af": 94, "odds": "soccer_portugal_primeira_liga"},
+    "SCOT": {"name": "Scottish Premiership", "fd": "SC0", "af": 179, "odds": "soccer_spl"},
+}  # ids/keys are from memory of provider docs: run `edgeagent doctor` to verify each one against your account
 
 RISK_DEFAULTS = {"kelly_fraction": 0.15, "min_edge": 0.03, "max_stake_pct": 0.02, "max_daily_exposure_pct": 0.06}
 BB_DEFAULTS = {"rolling_window_matches": 300, "min_matches_to_promote": 200, "promotion_p_value": 0.05,
@@ -35,6 +39,9 @@ class Settings:
     db_path: str = os.getenv("EDGEAGENT_DB", str(ROOT / "data" / "edgeagent.duckdb"))
     source: str = os.getenv("EDGEAGENT_SOURCE", "synthetic")  # synthetic | live
     admin_key: str = os.getenv("EDGEAGENT_ADMIN_KEY", "")
+    api_token: str = os.getenv("EDGEAGENT_API_TOKEN", "")      # if set, every /v1 data route needs "Authorization: Bearer <token>"
+    odds_regions: str = os.getenv("ODDS_REGIONS", "eu,uk,us,au")  # bookmaker regions to aggregate (worldwide coverage)
+    enabled_leagues: str = os.getenv("EDGEAGENT_LEAGUES", "EPL,LALIGA,SERIEA,BUNDES,LIGUE1")
     autorun: bool = os.getenv("EDGEAGENT_AUTORUN", "0") == "1"
     sim_step_hours: float = float(os.getenv("EDGEAGENT_SIM_STEP_HOURS", "0"))
     risk: dict = field(default_factory=lambda: {**RISK_DEFAULTS, **_yaml("risk.yaml")})
